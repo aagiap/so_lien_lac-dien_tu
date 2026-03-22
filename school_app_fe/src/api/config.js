@@ -1,4 +1,4 @@
-const BASE_URL = 'http://192.168.0.100:8080/api';
+const BASE_URL = 'http://192.168.0.103:8080/api';
 
 export const getAuthToken = () => localStorage.getItem('accessToken');
 export const getTemporaryToken = () => localStorage.getItem('temporaryToken');

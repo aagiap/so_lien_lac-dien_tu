@@ -73,7 +73,7 @@ public class TuitionPaymentController {
         // Redirect to Frontend
         // Assuming app.frontend-reset-url logic can be used or an explicit frontend URL
         // We will hardcode the redirect to the FE URL based on the return URL base
-        String baseUrl = "http://192.168.0.100:5173"; // Or read from properties
+        String baseUrl = "http://192.168.0.103:5173"; // Or read from properties
         String redirectUrl = baseUrl + "/#/payment-result?status=" + response.getStatus().name() + "&txnRef=" + response.getVnpTxnRef();
         
         return ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)

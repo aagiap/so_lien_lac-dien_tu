@@ -122,7 +122,7 @@ const ChatPage = {
                 const token = getAuthToken();
                 if (!token || typeof SockJS === 'undefined' || typeof StompJs === 'undefined') return;
 
-                const socket = new SockJS('http://192.168.0.100:8080/ws');
+                const socket = new SockJS('http://192.168.0.103:8080/ws');
                 const client = new StompJs.Client({
                     webSocketFactory: () => socket,
                     connectHeaders: { 'Authorization': `Bearer ${token}` },
