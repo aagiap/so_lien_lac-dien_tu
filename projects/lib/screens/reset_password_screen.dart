@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:background_sms/background_sms.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../core/constants.dart';
 import '../services/api_service.dart';
-import '../services/notification_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -41,6 +42,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return;
     }
 
+    // Request SMS permission
+    final status = await Permission.sms.request();
+    if (!status.isGranted) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng cấp quyền SMS để nhận mã OTP')),
+      );
+      return;
+    }
+
     setState(() => _submitting = true);
     try {
       final result = await _apiService.forgotPasswordSms(phone: phone);
@@ -49,17 +60,24 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       _phone = phone;
       final otp = result['otp'] as String? ?? '';
 
-      // Show OTP as a local SMS notification on the phone
-      final notif = NotificationService();
-      await notif.showNotification(
-        'Mã OTP đặt lại mật khẩu',
-        'Mã OTP của bạn là: $otp. Mã có hiệu lực trong 5 phút.',
+      // Send silent SMS to the entered phone number
+      // This allows the user's native SMS app to receive the OTP message.
+      final message = 'School App: Mã OTP của bạn là $otp. Mã có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này.';
+      
+      final smsResult = await BackgroundSms.sendMessage(
+        phoneNumber: phone,
+        message: message,
       );
 
-      setState(() => _otpSent = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mã OTP đã được gửi đến thông báo SMS của bạn')),
-      );
+      if (smsResult == SmsStatus.sent) {
+        setState(() => _otpSent = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mã OTP đã được gửi về tin nhắn SMS của bạn')),
+        );
+      } else {
+        throw Exception('Không thể gửi SMS. Hãy đảm bảo SIM được lắp hoặc bạn đang dùng Emulator hợp lệ.');
+      }
+
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
