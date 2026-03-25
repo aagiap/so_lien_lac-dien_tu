@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,9 @@ import org.springframework.web.bind.annotation.*;
 public class TuitionPaymentController {
 
     private final TuitionPaymentService tuitionPaymentService;
+
+    @Value("${app.server-ip}")
+    private String serverIp;
 
     @GetMapping("/student")
     public ResponseEntity<ApiResponse<List<TuitionPaymentResponse>>> getByStudent(@RequestParam("studentId") Long studentId) {
@@ -70,10 +74,8 @@ public class TuitionPaymentController {
     ) {
         TuitionPaymentResponse response = tuitionPaymentService.handleVnPayReturn(queryParams);
         
-        // Redirect to Frontend
-        // Assuming app.frontend-reset-url logic can be used or an explicit frontend URL
-        // We will hardcode the redirect to the FE URL based on the return URL base
-        String baseUrl = "http://192.168.0.103:5173"; // Or read from properties
+        // Redirect to Frontend using centralized server IP
+        String baseUrl = "http://" + serverIp + ":5173";
         String redirectUrl = baseUrl + "/#/payment-result?status=" + response.getStatus().name() + "&txnRef=" + response.getVnpTxnRef();
         
         return ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
@@ -81,3 +83,4 @@ public class TuitionPaymentController {
                 .build();
     }
 }
+

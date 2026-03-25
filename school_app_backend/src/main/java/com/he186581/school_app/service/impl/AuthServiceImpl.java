@@ -3,9 +3,11 @@ package com.he186581.school_app.service.impl;
 import com.he186581.school_app.dto.auth.AuthResponse;
 import com.he186581.school_app.dto.auth.EnableTwoFactorRequest;
 import com.he186581.school_app.dto.auth.ForgotPasswordRequest;
+import com.he186581.school_app.dto.auth.ForgotPasswordSmsRequest;
 import com.he186581.school_app.dto.auth.LoginRequest;
 import com.he186581.school_app.dto.auth.RefreshTokenRequest;
 import com.he186581.school_app.dto.auth.ResetPasswordRequest;
+import com.he186581.school_app.dto.auth.ResetPasswordSmsRequest;
 import com.he186581.school_app.dto.auth.TwoFactorSetupResponse;
 import com.he186581.school_app.dto.auth.VerifyOtpRequest;
 import com.he186581.school_app.dto.user.UserResponse;
@@ -16,8 +18,12 @@ import com.he186581.school_app.service.AuthService;
 import com.he186581.school_app.service.EmailService;
 import com.he186581.school_app.util.JwtUtil;
 import com.he186581.school_app.util.TotpUtil;
+import java.security.SecureRandom;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -28,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final AuthenticationManager authenticationManager;
@@ -39,6 +46,17 @@ public class AuthServiceImpl implements AuthService {
 
     @Value("${app.frontend-reset-url}")
     private String frontendResetUrl;
+
+    // OTP storage: phone -> {otp, expiresAt}
+    private static final ConcurrentHashMap<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
+    private static final long OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+    private static final SecureRandom secureRandom = new SecureRandom();
+
+    private record OtpEntry(String otp, long expiresAt) {
+        boolean isExpired() {
+            return System.currentTimeMillis() > expiresAt;
+        }
+    }
 
     @Override
     public AuthResponse login(LoginRequest request) {
@@ -114,6 +132,51 @@ public class AuthServiceImpl implements AuthService {
 
         String username = jwtUtil.extractUsername(request.getToken());
         User user = getUserByUsername(username);
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
+
+    @Override
+    public Map<String, String> forgotPasswordSms(ForgotPasswordSmsRequest request) {
+        User user = userRepository.findByPhone(request.getPhone())
+                .orElseThrow(() -> new BadRequestException("Số điện thoại không tồn tại trong hệ thống"));
+
+        // Generate 6-digit OTP
+        String otp = String.format("%06d", secureRandom.nextInt(1000000));
+
+        // Store OTP with expiry
+        otpStore.put(request.getPhone(), new OtpEntry(otp, System.currentTimeMillis() + OTP_EXPIRY_MS));
+
+        log.info("OTP for phone {}: {}", request.getPhone(), otp);
+
+        // Return OTP in response (mobile app will show it as SMS notification)
+        return Map.of("otp", otp, "phone", request.getPhone());
+    }
+
+    @Override
+    public void resetPasswordSms(ResetPasswordSmsRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new BadRequestException("Mật khẩu xác nhận không khớp");
+        }
+
+        // Verify OTP
+        OtpEntry entry = otpStore.get(request.getPhone());
+        if (entry == null || entry.isExpired()) {
+            otpStore.remove(request.getPhone());
+            throw new BadRequestException("Mã OTP không hợp lệ hoặc đã hết hạn. Vui lòng gửi lại.");
+        }
+
+        if (!entry.otp().equals(request.getOtp())) {
+            throw new BadRequestException("Mã OTP không chính xác");
+        }
+
+        // OTP is valid, remove it
+        otpStore.remove(request.getPhone());
+
+        // Reset password
+        User user = userRepository.findByPhone(request.getPhone())
+                .orElseThrow(() -> new BadRequestException("Số điện thoại không tồn tại"));
+
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
     }

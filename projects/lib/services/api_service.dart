@@ -51,8 +51,13 @@ class ApiService {
     return AuthResponse.fromJson(data);
   }
 
-  Future<void> forgotPassword({required String email}) async {
-    await _post('/auth/forgot-password', body: {'email': email}, requireAuth: false);
+  Future<Map<String, dynamic>> forgotPasswordSms({required String phone}) async {
+    final data = await _post('/auth/forgot-password-sms', body: {'phone': phone}, requireAuth: false);
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<void> resetPasswordSms({required String phone, required String otp, required String newPassword, required String confirmPassword}) async {
+    await _post('/auth/reset-password-sms', body: {'phone': phone, 'otp': otp, 'newPassword': newPassword, 'confirmPassword': confirmPassword}, requireAuth: false);
   }
 
   Future<void> resetPassword({required String token, required String newPassword, required String confirmPassword}) async {

@@ -1,4 +1,4 @@
-import { api, getUser, getAuthToken } from '../api/config.js';
+import { api, getUser, getAuthToken, WS_BASE_URL } from '../api/config.js';
 import { showToast } from '../utils/toast.js';
 
 const ChatPage = {
@@ -122,7 +122,7 @@ const ChatPage = {
                 const token = getAuthToken();
                 if (!token || typeof SockJS === 'undefined' || typeof StompJs === 'undefined') return;
 
-                const socket = new SockJS('http://192.168.0.103:8080/ws');
+                const socket = new SockJS(WS_BASE_URL);
                 const client = new StompJs.Client({
                     webSocketFactory: () => socket,
                     connectHeaders: { 'Authorization': `Bearer ${token}` },

@@ -47,7 +47,9 @@ public class SecurityConfig {
                                 "/api/auth/verify-otp",
                                 "/api/auth/refresh",
                                 "/api/auth/forgot-password",
+                                "/api/auth/forgot-password-sms",
                                 "/api/auth/reset-password",
+                                "/api/auth/reset-password-sms",
                                 "/ws/**",
                                 "/api/tuition-payments/vnpay-return"
                         ).permitAll()

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/constants.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -12,39 +13,52 @@ class ResetPasswordScreen extends StatefulWidget {
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _tokenController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _otpController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _apiService = ApiService();
 
   bool _submitting = false;
-  bool _emailSent = false;
+  bool _otpSent = false;
+  String _phone = '';
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _tokenController.dispose();
+    _phoneController.dispose();
+    _otpController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _sendResetEmail() async {
-    if (_emailController.text.trim().isEmpty) {
+  Future<void> _sendOtp() async {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập email')),
+        const SnackBar(content: Text('Vui lòng nhập số điện thoại')),
       );
       return;
     }
 
     setState(() => _submitting = true);
     try {
-      await _apiService.forgotPassword(email: _emailController.text.trim());
+      final result = await _apiService.forgotPasswordSms(phone: phone);
       if (!mounted) return;
-      setState(() => _emailSent = true);
+
+      _phone = phone;
+      final otp = result['otp'] as String? ?? '';
+
+      // Show OTP as a local SMS notification on the phone
+      final notif = NotificationService();
+      await notif.showNotification(
+        'Mã OTP đặt lại mật khẩu',
+        'Mã OTP của bạn là: $otp. Mã có hiệu lực trong 5 phút.',
+      );
+
+      setState(() => _otpSent = true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã gửi link reset password đến email của bạn')),
+        const SnackBar(content: Text('Mã OTP đã được gửi đến thông báo SMS của bạn')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -61,8 +75,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
     setState(() => _submitting = true);
     try {
-      await _apiService.resetPassword(
-        token: _tokenController.text.trim(),
+      await _apiService.resetPasswordSms(
+        phone: _phone,
+        otp: _otpController.text.trim(),
         newPassword: _newPasswordController.text,
         confirmPassword: _confirmPasswordController.text,
       );
@@ -94,13 +109,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: !_emailSent ? _buildEmailStep() : _buildResetStep(),
+          child: !_otpSent ? _buildPhoneStep() : _buildResetStep(),
         ),
       ),
     );
   }
 
-  Widget _buildEmailStep() {
+  Widget _buildPhoneStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -108,35 +123,35 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           width: 80,
           height: 80,
           decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.primaryLight),
-          child: const Icon(Icons.email_outlined, color: AppColors.primary, size: 40),
+          child: const Icon(Icons.sms_outlined, color: AppColors.primary, size: 40),
         ),
         const SizedBox(height: 24),
         const Text(
-          'Nhập email của bạn',
+          'Nhập số điện thoại của bạn',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark),
         ),
         const SizedBox(height: 8),
         const Text(
-          'Chúng tôi sẽ gửi link đặt lại mật khẩu đến email này',
+          'Chúng tôi sẽ gửi mã OTP đến thông báo SMS trên điện thoại của bạn',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textLight),
         ),
         const SizedBox(height: 32),
         TextFormField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
           decoration: const InputDecoration(
-            labelText: 'Email',
-            prefixIcon: Icon(Icons.email_outlined),
+            labelText: 'Số điện thoại',
+            prefixIcon: Icon(Icons.phone_outlined),
           ),
         ),
         const SizedBox(height: 24),
         ElevatedButton(
-          onPressed: _submitting ? null : _sendResetEmail,
+          onPressed: _submitting ? null : _sendOtp,
           child: _submitting
               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Gửi link đặt lại'),
+              : const Text('Gửi mã OTP'),
         ),
       ],
     );
@@ -155,18 +170,24 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Nhập token nhận được từ email và mật khẩu mới',
+            'Nhập mã OTP từ thông báo SMS và mật khẩu mới',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textLight),
           ),
           const SizedBox(height: 24),
           TextFormField(
-            controller: _tokenController,
+            controller: _otpController,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
             decoration: const InputDecoration(
-              labelText: 'Token (từ email)',
-              prefixIcon: Icon(Icons.vpn_key_outlined),
+              labelText: 'Mã OTP (6 số)',
+              prefixIcon: Icon(Icons.lock_clock_outlined),
             ),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập token' : null,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Vui lòng nhập mã OTP';
+              if (v.trim().length != 6) return 'Mã OTP phải gồm 6 số';
+              return null;
+            },
           ),
           const SizedBox(height: 16),
           TextFormField(
@@ -201,8 +222,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           ),
           const SizedBox(height: 12),
           TextButton(
-            onPressed: () => setState(() => _emailSent = false),
-            child: const Text('Gửi lại email', style: TextStyle(color: AppColors.primary)),
+            onPressed: () => setState(() => _otpSent = false),
+            child: const Text('Gửi lại mã OTP', style: TextStyle(color: AppColors.primary)),
           ),
         ],
       ),

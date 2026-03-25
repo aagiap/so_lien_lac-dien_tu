@@ -3,14 +3,17 @@ package com.he186581.school_app.controller;
 import com.he186581.school_app.dto.auth.AuthResponse;
 import com.he186581.school_app.dto.auth.EnableTwoFactorRequest;
 import com.he186581.school_app.dto.auth.ForgotPasswordRequest;
+import com.he186581.school_app.dto.auth.ForgotPasswordSmsRequest;
 import com.he186581.school_app.dto.auth.LoginRequest;
 import com.he186581.school_app.dto.auth.RefreshTokenRequest;
 import com.he186581.school_app.dto.auth.ResetPasswordRequest;
+import com.he186581.school_app.dto.auth.ResetPasswordSmsRequest;
 import com.he186581.school_app.dto.auth.TwoFactorSetupResponse;
 import com.he186581.school_app.dto.auth.VerifyOtpRequest;
 import com.he186581.school_app.dto.common.ApiResponse;
 import com.he186581.school_app.service.AuthService;
 import jakarta.validation.Valid;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -59,6 +62,26 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.builder()
                 .success(true)
                 .message("Nếu email tồn tại trong hệ thống, link reset password đã được gửi")
+                .data(null)
+                .build());
+    }
+
+    @PostMapping("/forgot-password-sms")
+    public ResponseEntity<ApiResponse<Map<String, String>>> forgotPasswordSms(@Valid @RequestBody ForgotPasswordSmsRequest request) {
+        Map<String, String> result = authService.forgotPasswordSms(request);
+        return ResponseEntity.ok(ApiResponse.<Map<String, String>>builder()
+                .success(true)
+                .message("Mã OTP đã được gửi")
+                .data(result)
+                .build());
+    }
+
+    @PostMapping("/reset-password-sms")
+    public ResponseEntity<ApiResponse<Object>> resetPasswordSms(@Valid @RequestBody ResetPasswordSmsRequest request) {
+        authService.resetPasswordSms(request);
+        return ResponseEntity.ok(ApiResponse.builder()
+                .success(true)
+                .message("Đặt lại mật khẩu thành công")
                 .data(null)
                 .build());
     }
