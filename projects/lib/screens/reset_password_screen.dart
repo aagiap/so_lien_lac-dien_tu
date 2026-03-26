@@ -1,6 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:background_sms/background_sms.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:http/http.dart' as http;
 
 import '../core/constants.dart';
 import '../services/api_service.dart';
@@ -19,6 +20,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _apiService = ApiService();
+
+  static const String _smsBridgeUrl = 'http://10.0.2.2:9099/inject';
 
   bool _submitting = false;
   bool _otpSent = false;
@@ -42,41 +45,31 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return;
     }
 
-    // Request SMS permission
-    final status = await Permission.sms.request();
-    if (!status.isGranted) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng cấp quyền SMS để nhận mã OTP')),
-      );
-      return;
-    }
-
     setState(() => _submitting = true);
     try {
       final result = await _apiService.forgotPasswordSms(phone: phone);
       if (!mounted) return;
 
       _phone = phone;
-      final otp = result['otp'] as String? ?? '';
+      final otp = (result['otp'] ?? '').toString();
 
-      // Send silent SMS to the entered phone number
-      // This allows the user's native SMS app to receive the OTP message.
-      final message = 'School App: Mã OTP của bạn là $otp. Mã có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này.';
-      
-      final smsResult = await BackgroundSms.sendMessage(
-        phoneNumber: phone,
-        message: message,
-      );
+      setState(() => _otpSent = true);
+      String message = 'Yêu cầu OTP thành công. Vui lòng kiểm tra SMS.';
 
-      if (smsResult == SmsStatus.sent) {
-        setState(() => _otpSent = true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mã OTP đã được gửi về tin nhắn SMS của bạn')),
-        );
-      } else {
-        throw Exception('Không thể gửi SMS. Hãy đảm bảo SIM được lắp hoặc bạn đang dùng Emulator hợp lệ.');
+      if (otp.isNotEmpty) {
+        final injected = await _injectSmsToEmulatorInbox(otp: otp);
+        if (injected) {
+          message = 'OTP đã được gửi vào app SMS của máy ảo.';
+        } else {
+          message = 'Đã tạo OTP nhưng chưa đẩy được vào SMS máy ảo. Hãy chạy SMS bridge trên máy tính.';
+        }
       }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
 
     } catch (e) {
       if (!mounted) return;
@@ -85,6 +78,30 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<bool> _injectSmsToEmulatorInbox({required String otp}) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse(_smsBridgeUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'sender': 'MyFSchool',
+              'message': 'Your OTP is $otp. It expires in 300 seconds.',
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return false;
+      }
+
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic> && decoded['ok'] == true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -151,7 +168,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Chúng tôi sẽ gửi mã OTP đến thông báo SMS trên điện thoại của bạn',
+          'Hệ thống sẽ gửi OTP qua SMS nếu backend đã cấu hình cổng SMS',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textLight),
         ),

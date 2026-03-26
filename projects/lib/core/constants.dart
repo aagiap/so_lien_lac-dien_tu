@@ -17,12 +17,12 @@ class AppConstants {
 
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.0.100:8080/api',
+    defaultValue: 'http://10.33.69.95:8080/api',
   );
 
   static const String wsUrl = String.fromEnvironment(
     'WS_URL',
-    defaultValue: 'ws://192.168.0.100:8080/ws',
+    defaultValue: 'ws://10.33.69.95:8080/ws',
   );
 
   static const Duration networkTimeout = Duration(seconds: 20);

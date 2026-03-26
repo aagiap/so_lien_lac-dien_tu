@@ -1,4 +1,4 @@
-const BASE_URL = 'http://192.168.0.103:8080/api';
+const BASE_URL = 'http://10.33.69.95:8080/api';
 export const WS_BASE_URL = BASE_URL.replace('/api', '/ws').replace('http://', 'http://');
 
 export const getAuthToken = () => localStorage.getItem('accessToken');
